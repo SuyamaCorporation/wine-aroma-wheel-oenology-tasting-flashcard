@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ワインアロマホイール・テイスティングフラッシュカード</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-rose-950 text-rose-100 min-h-screen">
+<div class="max-w-4xl mx-auto p-4">
+  <h1 class="text-2xl font-bold text-center text-rose-300 mb-1">🍷 ワインアロマホイール</h1>
+  <p class="text-center text-rose-700 mb-4 text-sm">テイスティングフラッシュカードで香りを学ぶ</p>
+
+  <!-- Type filter -->
+  <div class="flex gap-2 mb-4 justify-center">
+    <button onclick="setType('all')" id="type-all" class="px-4 py-1.5 rounded-full bg-rose-800 text-rose-100 text-sm font-semibold" aria-label="全種類">🍷 全て</button>
+    <button onclick="setType('red')" id="type-red" class="px-4 py-1.5 rounded-full bg-rose-950 text-rose-500 text-sm" aria-label="赤ワイン">🔴 赤</button>
+    <button onclick="setType('white')" id="type-white" class="px-4 py-1.5 rounded-full bg-rose-950 text-rose-500 text-sm" aria-label="白ワイン">🟡 白</button>
+    <button onclick="setType('rose')" id="type-rose" class="px-4 py-1.5 rounded-full bg-rose-950 text-rose-500 text-sm" aria-label="ロゼワイン">🌸 ロゼ</button>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <!-- Aroma Wheel -->
+    <div class="bg-rose-900/30 rounded-xl p-4">
+      <h2 class="text-sm font-semibold text-rose-200 mb-2 text-center">アロマホイール</h2>
+      <canvas id="wheel" width="280" height="280" class="mx-auto block rounded-full"></canvas>
+      <div id="wheel-hover" class="mt-2 text-xs text-rose-400 text-center min-h-5"></div>
+    </div>
+
+    <!-- Flashcard -->
+    <div class="space-y-3">
+      <div class="bg-rose-900/30 rounded-xl p-4 min-h-48 cursor-pointer hover:bg-rose-900/50 transition-colors" onclick="flipCard()" role="button" aria-label="カードをめくる">
+        <div id="card-front">
+          <div id="card-category" class="text-xs font-semibold mb-1"></div>
+          <div id="card-aroma" class="text-2xl font-bold text-rose-200 mb-2"></div>
+          <div class="text-xs text-rose-600">クリックして詳細を見る →</div>
+        </div>
+        <div id="card-back" class="hidden">
+          <div id="card-desc" class="text-sm text-rose-200 mb-2"></div>
+          <div id="card-varieties" class="text-xs text-rose-400 mb-1"></div>
+          <div id="card-hint" class="text-xs text-rose-500 italic"></div>
+        </div>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="prevCard()" class="flex-1 bg-rose-900 hover:bg-rose-800 text-rose-200 py-1.5 rounded-lg text-sm" aria-label="前">◀</button>
+        <span id="card-idx" class="flex-1 text-center text-xs text-rose-600 py-1.5"></span>
+        <button onclick="nextCard()" class="flex-1 bg-rose-900 hover:bg-rose-800 text-rose-200 py-1.5 rounded-lg text-sm" aria-label="次">▶</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Variety reference -->
+  <div class="mt-4 bg-rose-900/30 rounded-xl p-4">
+    <h2 class="text-sm font-semibold text-rose-200 mb-3">品種別代表香り</h2>
+    <div id="variety-ref" class="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs"></div>
+  </div>
+</div>
+
+<script>
+const aromas = [
+  // Red
+  { cat:'果実（赤）', aroma:'チェリー', type:'red', color:'#e11d48', desc:'フレッシュなチェリー香。若いワインに多い', varieties:'ピノ・ノワール、サンジョヴェーゼ', hint:'マラスキーノチェリー（甘い）かフレッシュか？'},
+  { cat:'果実（赤）', aroma:'ブラックベリー', type:'red', color:'#7c3aed', desc:'濃い果実香。フルボディの赤に多い', varieties:'カベルネ・ソーヴィニヨン、シラー', hint:'ジャム状か生果実か？'},
+  { cat:'果実（赤）', aroma:'プラム', type:'red', color:'#9f1239', desc:'熟した甘みのある香り', varieties:'メルロー、マルベック', hint:'熟度を表す重要指標'},
+  { cat:'スパイス', aroma:'ブラックペッパー', type:'red', color:'#1c1917', desc:'後鼻腔に刺激的な香辛料感', varieties:'シラー/シラーズ', hint:'グルナッシュとブレンドで複雑に'},
+  { cat:'スパイス', aroma:'シナモン', type:'red', color:'#92400e', desc:'樽熟成由来の甘いスパイス香', varieties:'リオハ、キャンティ', hint:'新樽率が高いと強く出る'},
+  { cat:'土・ミネラル', aroma:'革・土', type:'red', color:'#78350f', desc:'古いワインや南フランスに多い複雑な香り', varieties:'バローロ、シャトーヌフ', hint:'ブレタノマイセス酵母由来の場合も'},
+  // White
+  { cat:'果実（黄）', aroma:'桃・アプリコット', type:'white', color:'#f59e0b', desc:'熟した南国系の白に多い', varieties:'ヴィオニエ、ゲヴュルツ', hint:'熟度高め・温暖産地の特徴'},
+  { cat:'果実（柑橘）', aroma:'レモン・ライム', type:'white', color:'#eab308', desc:'清涼感のある酸味の高い香り', varieties:'リースリング、シャルドネ（冷涼）', hint:'高酸度の若いワインに典型'},
+  { cat:'花', aroma:'白い花（アカシア）', type:'white', color:'#fdf4ff', desc:'上品な花の香り。エレガントなワインに', varieties:'コンドリュー、ソーヴィニヨン・ブラン', hint:'香水のような甘みを感じたら？'},
+  { cat:'ミネラル', aroma:'火打ち石・燻製', type:'white', color:'#6b7280', desc:'シャブリに代表されるミネラル感', varieties:'シャブリ、プイィ・フュメ', hint:'「銃の火薬」的とも表現される'},
+  { cat:'樽', aroma:'バター・クリーム', type:'white', color:'#fbbf24', desc:'MLFと樽熟成から生まれるリッチな香り', varieties:'シャルドネ（ブルゴーニュ）', hint:'マロラクティック発酵の証'},
+  { cat:'樽', aroma:'バニラ・トースト', type:'white', color:'#d97706', desc:'新樽由来の甘い香り', varieties:'シャルドネ（新世界）', hint:'新樽のアメリカンオークで強く出る'},
+  // Rosé
+  { cat:'果実（ロゼ）', aroma:'苺・ラズベリー', type:'rose', color:'#f43f5e', desc:'フレッシュで可愛らしい香り', varieties:'コート・ド・プロヴァンス', hint:'若いうちに飲むべきフレッシュ感'},
+  { cat:'花（ロゼ）', aroma:'バラ・牡丹', type:'rose', color:'#ec4899', desc:'花の香りが印象的なロゼ', varieties:'タヴェル、バンドール・ロゼ', hint:'飲む前に香りを長く楽しんで'},
+];
+
+const varieties = [
+  { name:'ピノ・ノワール', type:'red', aromas:'チェリー・土・キノコ・スパイス', region:'ブルゴーニュ・オレゴン' },
+  { name:'カベルネS', type:'red', aromas:'ブラックカラント・シダー・ミント・タバコ', region:'ボルドー・ナパ' },
+  { name:'シャルドネ', type:'white', aromas:'洋ナシ・レモン・バター・ミネラル', region:'ブルゴーニュ・シャブリ' },
+  { name:'リースリング', type:'white', aromas:'ライム・ガソリン・蜂蜜・フリント', region:'アルザス・モーゼル' },
+  { name:'ゲヴュルツ', type:'white', aromas:'ライチ・バラ・スパイス・生姜', region:'アルザス・ドイツ' },
+  { name:'メルロー', type:'red', aromas:'プラム・チョコ・ローリエ・タバコ', region:'ポムロール・サンテミリオン' },
+];
+
+let deck = [...aromas];
+let idx = 0;
+let flipped = false;
+let angle = 0;
+
+function setType(t) {
+  ['all','red','white','rose'].forEach(id => {
+    const btn = document.getElementById('type-' + id);
+    btn.className = id === t
+      ? 'px-4 py-1.5 rounded-full bg-rose-800 text-rose-100 text-sm font-semibold'
+      : 'px-4 py-1.5 rounded-full bg-rose-950 text-rose-500 text-sm';
+  });
+  deck = t === 'all' ? [...aromas] : aromas.filter(a => a.type === t);
+  idx = 0; flipped = false;
+  showCard();
+}
+
+function showCard() {
+  const a = deck[idx];
+  if (!a) return;
+  flipped = false;
+  document.getElementById('card-front').classList.remove('hidden');
+  document.getElementById('card-back').classList.add('hidden');
+  document.getElementById('card-category').textContent = a.cat;
+  document.getElementById('card-aroma').textContent = a.aroma;
+  document.getElementById('card-idx').textContent = `${idx+1} / ${deck.length}`;
+}
+
+function flipCard() {
+  const a = deck[idx];
+  flipped = !flipped;
+  if (flipped) {
+    document.getElementById('card-front').classList.add('hidden');
+    document.getElementById('card-back').classList.remove('hidden');
+    document.getElementById('card-desc').textContent = a.desc;
+    document.getElementById('card-varieties').textContent = '品種例: ' + a.varieties;
+    document.getElementById('card-hint').textContent = '💡 ' + a.hint;
+  } else {
+    showCard();
+  }
+}
+
+function prevCard() { idx = (idx-1+deck.length)%deck.length; flipped=false; showCard(); }
+function nextCard() { idx = (idx+1)%deck.length; flipped=false; showCard(); }
+
+function drawWheel() {
+  const canvas = document.getElementById('wheel');
+  const ctx = canvas.getContext('2d');
+  const W=280, H=280, cx=140, cy=140;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#1c0a0f'; ctx.fillRect(0,0,W,H);
+
+  const categories = ['果実', 'スパイス', '花', 'ミネラル', '土・木', '樽'];
+  const nCat = categories.length;
+  const wedgeAngle = (2*Math.PI)/nCat;
+  const catColors = ['#e11d48','#7c3aed','#ec4899','#64748b','#78350f','#d97706'];
+
+  categories.forEach((cat, i) => {
+    const a1 = i * wedgeAngle - Math.PI/2;
+    const a2 = a1 + wedgeAngle;
+    // Outer ring
+    ctx.fillStyle = catColors[i] + '55';
+    ctx.strokeStyle = catColors[i];
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(cx,cy);
+    ctx.arc(cx,cy,120,a1,a2);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    // Inner ring
+    ctx.fillStyle = catColors[i] + '33';
+    ctx.beginPath(); ctx.moveTo(cx,cy); ctx.arc(cx,cy,70,a1,a2); ctx.closePath(); ctx.fill();
+    // Label
+    const midA = a1 + wedgeAngle/2;
+    const lx = cx + 95*Math.cos(midA);
+    const ly = cy + 95*Math.sin(midA);
+    ctx.fillStyle = catColors[i]; ctx.font='9px sans-serif'; ctx.textAlign='center';
+    ctx.fillText(cat, lx, ly+3);
+  });
+
+  // Center
+  ctx.fillStyle='#881337';
+  ctx.beginPath(); ctx.arc(cx,cy,25,0,2*Math.PI); ctx.fill();
+  ctx.fillStyle='#fda4af'; ctx.font='10px sans-serif'; ctx.textAlign='center';
+  ctx.fillText('アロマ', cx, cy+3);
+}
+
+function renderVarieties() {
+  document.getElementById('variety-ref').innerHTML = varieties.map(v => `
+    <div class="bg-rose-900/30 rounded-lg p-2">
+      <div class="font-semibold text-rose-200 text-xs mb-0.5">${v.name} <span class="text-rose-600">(${v.type==='red'?'赤':'白'})</span></div>
+      <div class="text-rose-400">${v.aromas}</div>
+      <div class="text-rose-700">${v.region}</div>
+    </div>
+  `).join('');
+}
+
+drawWheel();
+showCard();
+renderVarieties();
+</script>
+</body>
+</html>
